@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E-Dziennik System</title>
+    <link href="https://jsdelivr.net" rel="stylesheet">
+    <style>
+        :root { --librus-dark: #1e3a5f; --librus-yellow: #f1c40f; --librus-bg: #e9ecef; }
+        body { background-color: var(--librus-bg); font-family: Arial, sans-serif; font-size: 13px; }
+        .top-bar { background-color: var(--librus-dark); color: white; padding: 10px 20px; border-bottom: 3px solid var(--librus-yellow); }
+        .sidebar { background-color: #fff; border-right: 1px solid #ccc; min-height: 100vh; padding: 0; }
+        .sidebar-header { background: #eee; padding: 10px; font-weight: bold; border-bottom: 1px solid #ccc; }
+        .sidebar-menu div { padding: 10px 15px; border-bottom: 1px solid #eee; cursor: pointer; }
+        .active-menu { background-color: var(--librus-yellow) !important; font-weight: bold; }
+        .main-content { background: white; border: 1px solid #ccc; margin: 15px; padding: 20px; min-height: 400px; }
+        .hidden { display: none; }
+        .btn-save { background-color: #27ae60; color: white; font-weight: bold; margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+<!-- LOGOWANIE -->
+<div id="login-section" class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-4 card p-4 shadow">
+            <h4 class="text-center" style="color: var(--librus-dark)">Logowanie</h4>
+            <hr>
+            <input type="text" id="user-input" class="form-control mb-2" placeholder="Twój Login">
+            <input type="password" class="form-control mb-3" placeholder="Hasło">
+            <button class="btn btn-primary w-100" style="background: var(--librus-dark)" onclick="showSetup()">ZALOGUJ SIĘ</button>
+        </div>
+    </div>
+</div>
+
+<!-- KONFIGURACJA -->
+<div id="setup-section" class="container mt-5 hidden">
+    <div class="row justify-content-center">
+        <div class="col-md-6 card p-4 shadow">
+            <h5>Wpisz listę uczniów (jeden pod drugim):</h5>
+            <textarea id="students-list" class="form-control mb-3" rows="8" placeholder="Jan Kowalski&#10;Anna Nowak"></textarea>
+            <button class="btn btn-success w-100" onclick="startJournal()">STWÓRZ DZIENNIK</button>
+        </div>
+    </div>
+</div>
+
+<!-- DZIENNIK -->
+<div id="journal-section" class="hidden">
+    <div class="top-bar d-flex justify-content-between align-items-center">
+        <div><strong>SYNERGIA</strong> | Arkusz ocen</div>
+        <div id="user-display"></div>
+    </div>
+
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-2 sidebar">
+                <div class="sidebar-header">NAWIGACJA</div>
+                <div class="sidebar-menu">
+                    <div id="m-grades" class="active-menu" onclick="switchTab('grades')">Oceny i Uwagi</div>
+                    <div id="m-att" onclick="switchTab('attendance')">Frekwencja</div>
+                    <div onclick="location.reload()" style="color: red; border-top: 2px solid #eee">WYLOGUJ</div>
+                </div>
+            </div>
+
+            <div class="col-md-10">
+                <div class="main-content shadow-sm">
+                    <h5 id="view-title">Widok: Oceny</h5>
+                    <table class="table table-bordered table-hover">
+                        <thead class="table-light">
+                            <tr>
+                                <th width="40">Lp.</th>
+                                <th>Uczeń</th>
+                                <th id="dynamic-header">Oceny i uwagi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="journal-body"></tbody>
+                    </table>
+                    <div class="text-end">
+                        <button class="btn btn-save px-5" onclick="finalSave()">ZAPISZ WSZYSTKO</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let students = [];
+    let currentTab = 'grades';
+    let dataStorage = {}; // Tu trzymamy dane wszystkich uczniów
+
+    function showSetup() {
+        userName = document.getElementById('user-input').value || "Nauczyciel";
+        document.getElementById('login-section').classList.add('hidden');
+        document.getElementById('setup-section').classList.remove('hidden');
+    }
+
+    function startJournal() {
+        const input = document.getElementById('students-list').value;
+        const list = input.split('\n').filter(n => n.trim() !== "");
+        
+        if(list.length === 0) return alert("Wpisz uczniów!");
+
+        // Inicjalizacja danych dla każdego ucznia
+        list.forEach((name, index) => {
+            students.push(name);
+            dataStorage[index] = {
+                grade: "",
+                comment: "",
+                attendance: "ob" // domyślnie obecny
+            };
+        });
+
+        document.getElementById('user-display').innerHTML = `Zalogowany: <strong>${userName}</strong>`;
+        document.getElementById('setup-section').classList.add('hidden');
+        document.getElementById('journal-section').classList.remove('hidden');
+        render();
+    }
+
+    function updateData(index, field, value) {
+        dataStorage[index][field] = value;
+    }
+
+    function switchTab(tab) {
+        currentTab = tab;
+        document.getElementById('m-grades').className = tab === 'grades' ? 'active-menu' : '';
+        document.getElementById('m-att').className = tab === 'attendance' ? 'active-menu' : '';
+        render();
+    }
+
+    function render() {
+        const tbody = document.getElementById('journal-body');
+        tbody.innerHTML = '';
+
+        students.forEach((name, i) => {
+            const tr = document.createElement('tr');
+            let content = '';
+
+            if(currentTab === 'grades') {
+                content = `
+                    <div class="d-flex gap-2">
+                        <select class="form-select form-select-sm" style="width: 90px" onchange="updateData(${i}, 'grade', this.value)">
+                            <option value="">Ocena</option>
+                            ${["6","6-","5+","5","5-","4+","4","4-","3","2","1"].map(g => 
+                                `<option ${dataStorage[i].grade === g ? 'selected' : ''}>${g}</option>`
+                            ).join('')}
+                        </select>
+                        <input type="text" class="form-control form-control-sm" placeholder="Uwaga..." 
+                               value="${dataStorage[i].comment}" oninput="updateData(${i}, 'comment', this.value)">
+                    </div>`;
+            } else {
+                const att = dataStorage[i].attendance;
+                content = `
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn ${att==='ob'?'btn-success':'btn-outline-success'}" onclick="updateData(${i},'attendance','ob'); render()">Ob</button>
+                        <button class="btn ${att==='nb'?'btn-danger':'btn-outline-danger'}" onclick="updateData(${i},'attendance','nb'); render()">Nb</button>
+                        <button class="btn ${att==='np'?'btn-warning':'btn-outline-warning'}" onclick="updateData(${i},'attendance','np'); render()">Np</button>
+                        <button class="btn ${att==='zw'?'btn-info':'btn-outline-info'}" onclick="updateData(${i},'attendance','zw'); render()">Zw</button>
+                    </div>`;
+            }
+
+            tr.innerHTML = `<td>${i+1}</td><td><strong>${name}</strong></td><td>${content}</td>`;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function finalSave() {
+        console.log("Zapisane dane:", dataStorage);
+        alert("Dane zostały trwale zapisane w sesji! Możesz swobodnie przełączać zakładki.");
+    }
+</script>
+
+</body>
+</html>
